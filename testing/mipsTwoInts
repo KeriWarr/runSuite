@@ -1,0 +1,28 @@
+#!/bin/bash
+source /u/cs241/setup
+
+build() {
+  java cs241.binasm < ${1}.asm > ${1}.mips
+}
+
+run() {
+  java mips.twoints ${1}.mips < ${2}.in > ${3} 2> ${2}.err
+}
+
+clean() {
+  rm ${1}.mips
+}
+
+while getopts ":brc" opt; do
+  case "$opt" in
+  b) build ${2}
+     exit 0;
+     ;;
+  r) run ${2} ${3} ${4}
+     exit 0;
+     ;;
+  c) clean ${2}
+     exit 0;
+     ;;
+  esac
+done

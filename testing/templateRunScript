@@ -1,0 +1,28 @@
+#!/bin/bash
+source /u/cs241/setup
+
+build() {
+
+}
+
+run() {
+
+}
+
+clean() {
+
+}
+
+while getopts ":brc" opt; do
+  case "$opt" in
+  b) build ${2}
+     exit 0;
+     ;;
+  r) run ${2} ${3} ${4}
+     exit 0;
+     ;;
+  c) clean ${2}
+     exit 0;
+     ;;
+  esac
+done

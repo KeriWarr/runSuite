@@ -1,0 +1,158 @@
+#!/bin/bash
+
+TEST_SCRIPTS_FOLDER="testing"
+TEST_FILE_EXTENSION="tst"
+TEST_FOLDER_NAME="Tests"
+
+E_BAD_ARGS=2
+E_BAD_TEST_SUITE=3
+E_BAD_TEST_SCRIPT=4
+E_BAD_TEST_FOLDER=5
+E_BAD_TEST_INPUT=6
+E_BAD_TEST_OUTPUT=7
+
+OPTIND=1
+
+verbose=0
+
+show_help() {
+    echo "NAME"
+    echo -e "       runSuite - run a series of tests\n"
+    echo "SYNOPSIS"
+    echo -e "       runSuite [OPTION]... PROJECT_NAME\n"
+    echo "DESCRIPTION"
+    echo -e "       Run a series of TESTS.\n"
+    echo "       -h"
+    echo -e "              display this help text\n"
+    echo "       -v"
+    echo -e "              verbose. Prints input and output files for successful test cases\n"
+    echo "       -s STRING"
+    echo -e "              looks for a scripts folder at ../STRING\n"
+    echo "       -e STRING"
+    echo -e "              looks for a test suite file called \${PROJECT_NAME}.\${STRING}\n"
+    echo "       -f STRING"
+    echo -e "              looks for a test case folder at ./\${PROJECT_NAME}\${STRING}\n\n"
+    echo "       In order for this script to be used, some conventions must be adhered to."
+    echo "       The folder in which it is run must contain two things:"
+    echo "              a test suite file named PROJECT_NAME.tst"
+    echo "              a folder containing test cases specified in the test suite file"
+    echo -e "       Typically, a program file will also be kept with these.\n"
+    echo "       The first line of the test suite file should be the path of a script which"
+    echo "       takes three command line arguments:"
+    echo "              the name of the project"
+    echo "              the name of a test"
+    echo "              the path to a temporary output file"
+    echo "       The script should run the test against a program, probably the one kept"
+    echo "       with the test suite file, and write the output to the temporary output file"
+    echo "       By default the script is looked for relative to the parent directory of"
+    echo "       the current directory. (should change)"
+    echo "       The rest of the lines of the test sutie file should be names of tests."
+    echo "       Each of these names should correspond to a pair of files in the test"
+    echo -e "       folder named \${TEST_NAME}.in and \${TEST_NAME}.out"
+    echo "       If these conditions are satisfied, each of the test cases will be run"
+    echo -e "       against the program, with success or failure being reported\n\n"
+    echo "AUTHOR"
+    echo -e "       Written by Keri Warr.\n"
+    echo "REPORTING BUGS"
+    echo -e "       Report bugs to: ayy@lmao.org\n"
+}
+
+while getopts ":hvs:e:f:" opt; do
+    case "$opt" in
+    h)  show_help
+        exit 0;
+        ;;
+    v)  verbose=1
+        ;;
+    s)  TEST_SCRIPTS_FOLDER=$OPTARG
+        ;;
+    e)  TEST_FILE_EXTENSION=$OPTARG
+        ;;
+    f)  TEST_FOLDER_NAME=$OPTARG
+        ;;
+    \?) echo "Invalid option: -$OPTARG" > /dev/stderr
+        exit $E_BAD_ARGS;
+        ;;
+    :)  echo "Option -$OPTARG requires an argument." > /dev/stderr
+        exit $E_BAD_ARGS;
+        ;;
+    esac
+done
+
+shift $((OPTIND-1))
+[ "$1" = "--" ] && shift
+
+if [ ${#} -ne 1 ]; then
+    echo "Incorrect number of arguments. Expecting ONE argument. See usage instructions." > /dev/stderr
+    exit $E_BAD_ARGS;
+elif [ ! -e ${1}.${TEST_FILE_EXTENSION} ]; then
+    echo "Can't find test suite file. See usage instructions." > /dev/stderr
+    exit $E_BAD_TEST_SUITE;
+elif [ ! -r ${1}.${TEST_FILE_EXTENSION} ]; then
+    echo "Can't read test suite file. See usage instructions." > /dev/stderr
+    exit $E_BAD_TEST_SUITE;
+fi
+
+RUN_TEST=`head -n 1 ${1}.${TEST_FILE_EXTENSION} 2> /dev/null`
+
+if [ ! -e ../${TEST_SCRIPTS_FOLDER}/${RUN_TEST} ]; then
+    echo "Can't find test execution script. See usage instructions." > /dev/stderr
+    exit $E_BAD_TEST_SCRIPT;
+elif [ ! -r ../${TEST_SCRIPTS_FOLDER}/${RUN_TEST} ]; then
+    echo "Can't read the test execution script. See usage instructions." > /dev/stderr
+    exit $E_BAD_TEST_SCRIPT;
+elif [ ! -d ${1}${TEST_FOLDER_NAME} ]; then
+    echo "Can't find test suite folder. See usage instructions." > /dev/stderr
+    exit $E_BAD_TEST_FOLDER;
+fi
+
+for test in `tail -n +2 "${1}.${TEST_FILE_EXTENSION}"`
+do
+
+    TEST_PATH=${1}${TEST_FOLDER_NAME}/${test}
+
+    if [ ! -e ${TEST_PATH}.in ]; then
+        echo "Can't find ${TEST_PATH}.in. See usage instructions." > /dev/stderr
+        exit $E_BAD_TEST_INPUT;
+    elif [ ! -e ${TEST_PATH}.out ]; then
+        echo "Can't find ${TEST_PATH}.out. See usage instructions." > /dev/stderr
+        exit $E_BAD_TEST_OUTPUT;
+    elif [ ! -r ${TEST_PATH}.in ]; then
+        echo "Can't read ${TEST_PATH}.in. See usage instructions." > /dev/stderr
+        exit $E_BAD_TEST_INPUT;
+    elif [ ! -r ${TEST_PATH}.out ]; then
+        echo "Can't read ${TEST_PATH}.out. See usage instructions." > /dev/stderr
+        exit $E_BAD_TEST_OUTPUT;
+    fi
+
+done
+
+../${TEST_SCRIPTS_FOLDER}/${RUN_TEST} -b ${1}
+
+for test in `tail -n +2 "${1}.${TEST_FILE_EXTENSION}"`
+do
+
+    OUT=`mktemp /tmp/tmp.XXXXXXXXXX`
+    TEST_PATH=${1}${TEST_FOLDER_NAME}/${test}
+
+    ../${TEST_SCRIPTS_FOLDER}/${RUN_TEST} -r ${1} ${TEST_PATH} ${OUT}
+
+    diff ${OUT} ${TEST_PATH}.out > /dev/null
+
+    if [ ${?} -ne 0 ]; then
+        echo -e "\nTest failed: ${TEST_PATH}\nInput:\n`cat ${TEST_PATH}.in`\nExpected:\n`cat ${TEST_PATH}.out`\nActual:\n`cat ${OUT}`"
+    else
+        if [ $verbose -eq 1 ]; then
+            echo -e "Test Passing: ${TEST_PATH}\nInput:\n`cat ${TEST_PATH}.in`\nOutput:\n`cat ${TEST_PATH}.out`"
+        else
+            echo -e "Test Passing: ${TEST_PATH}"
+        fi
+    fi
+
+done
+
+../${TEST_SCRIPTS_FOLDER}/${RUN_TEST} -c ${1} 
+
+if [ $verbose -eq 1 ]; then
+    echo "Testing suite executed successfully..."
+fi

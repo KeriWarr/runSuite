@@ -1,0 +1,7 @@
+#!/bin/bash
+source /u/cs241/setup
+
+java cs241.binasm < ${1}.asm > ${1}.mips
+java mips.array ${1}.mips < ${2}.in > ${3} 2> ${2}.err
+
+rm ${1}.mips

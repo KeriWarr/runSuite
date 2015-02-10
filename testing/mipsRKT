@@ -1,0 +1,28 @@
+#!/bin/bash
+source /u/cs241/setup
+
+build() {
+  raco exe -o ${1}.exe ${1}.rkt
+}
+
+run() {
+  ./${1}.exe < ${2}.in > ${3} 2> ${2}.err
+}
+
+clean() {
+  rm ${1}.exe
+}
+
+while getopts ":brc" opt; do
+  case "$opt" in
+  b) build ${2}
+     exit 0;
+     ;;
+  r) run ${2} ${3} ${4}
+     exit 0;
+     ;;
+  c) clean ${2}
+     exit 0;
+     ;;
+  esac
+done
